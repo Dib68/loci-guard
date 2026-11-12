@@ -25,6 +25,8 @@ A background model doses what the palace tells you. Rooms you work in heat up an
 
 Everything Loci Guard puts in your context arrives as one block chosen by a single arbiter: brain rules, palace memories, wiki bullets, forecasts, nearby memories and housekeeping notes compete on salience within the astrocyte's budget. Constraints and intentions always get through. Wiki bullets whose sources you already received are dropped. Groups appear in a fixed order: Intentions, Rules, Pitfalls, Forecasts, Decisions, Notes, Linked, Nearby, Project, Housekeeping. Rules are binding; Intentions are to-dos; Forecasts are open predictions about the area, weighted by how reliable their persona has been.
 
+To keep context small, long memories arrive as their gist ending in `...`, followed in brackets by the numbers, paths and names the cut part held. Memories saved together in the same place arrive as one item, `(+N from the same episode: #id ...)`. Rules and intentions always arrive whole. When the cut part matters to what you are doing, read it: `loci-guard recall --id ID` (repeatable).
+
 If the user asks why you did or didn't know something, run `loci-guard workspace <file>` (or with no path, for session start). It shows every proposal, whether it was broadcast, and why the others lost (`over capacity`, `below ignition`, `duplicate`, `restates a broadcast item`, `already seen this session`, `covered by a broadcast memory`, `in the wiki page`, `dormant`). It changes nothing.
 
 ## Merging, rewording and history

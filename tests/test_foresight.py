@@ -95,7 +95,7 @@ def test_open_predictions_surface_in_their_rooms_with_evidence(palace):
     project_wide = foresight.begin("Rename the package", [])["session"]["id"]
     foresight.record(project_wide, "PREDICT user | 0.5 | imports break | pip install")
     text = room_broadcast(palace, Astrocyte(palace), "s1", "billing/refunds.py", dry_run=True).text
-    assert "Forecasts (open predictions" in text and "refund retries flood the queue" in text
+    assert "Forecasts (calibrated" in text and "refund retries flood the queue. Check: queue depth alert" in text
     assert "imports break" not in text
     assert "imports break" not in (room_broadcast(palace, Astrocyte(palace), "s1", "docs/x.md", dry_run=True).text or "")
     palace.record_lesson("billing/queue.py", "QUA003", "bare except swallowed queue errors")

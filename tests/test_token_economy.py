@@ -37,6 +37,53 @@ def test_room_broadcast_leaves_out_chats_and_old_check_clauses(tmp_path):
     assert "Chat 2026" not in text and "checked by" not in text
 
 
+def test_gist_keeps_the_opening_and_every_dropped_detail():
+    from loci_guard.brain.workspace import GIST_CHARS, SHORTENED, gist
+
+    short = "Money is Decimal."
+    assert gist(short) == short
+    long = ("Two processes saving the store at the same moment lose updates, because each one rewrites the whole "
+            "file it loaded earlier; in tests 94% of entries vanished from `palace.json` under MAX_WRITERS=8")
+    shortened = gist(long)
+    assert len(shortened) < len(long) and SHORTENED in shortened
+    assert shortened.startswith("Two processes saving the store at the same moment lose updates")
+    for detail in ("94", "palace.json", "MAX_WRITERS"):
+        assert detail in shortened
+    assert len(shortened.split(SHORTENED)[0]) <= GIST_CHARS
+
+
+def test_an_episode_travels_as_one_item_and_counts_as_delivered(tmp_path):
+    (tmp_path / "billing").mkdir()
+    palace = MemoryPalace(tmp_path)
+    ids = [palace.remember(text, ["billing/"], kind="lesson", source="foresight")["id"] for text in (
+        "Concurrent saves lose refunds written by the other worker",
+        "A reader mid-write sees truncated JSON and wipes the ledger",
+        "Retry storms double-charge customers when the lock times out",
+    )]
+    rule = palace.remember("Refunds go through billing/queue.py", ["billing/"], kind="constraint")
+    astro = Astrocyte(palace)
+    text = room_broadcast(palace, astro, "s1", "billing/x.py").text
+    assert "(+2 from the same episode:" in text and rule["text"] in text
+    assert sum(text.count(f"#{i}") for i in ids) == 3  # the lead once, the other two by reference
+    assert set(ids) <= palace.seen_keys("s1")
+    assert all("Concurrent saves" not in line for line in text.splitlines()[1:] if "Retry storms" in line)
+    full = CliRunner().invoke(main, ["--root", str(tmp_path), "recall", "--id", ids[1]]).output
+    assert "wipes the ledger" in full
+
+
+def test_the_shortened_note_appears_only_when_something_was_shortened(tmp_path):
+    from loci_guard.brain.workspace import SHORTENED_FOOTER
+
+    (tmp_path / "api").mkdir()
+    palace = MemoryPalace(tmp_path)
+    palace.remember('Keys may be quoted: `"api_key": "..."` must still match', ["api/"])
+    text = room_broadcast(palace, Astrocyte(palace), "s1", "api/x.py", dry_run=True).text
+    assert '"..."' in text and SHORTENED_FOOTER not in text
+    palace.remember("A very long note about retries " + "and backoff " * 20, ["api/"])
+    text = room_broadcast(palace, Astrocyte(palace), "s2", "api/x.py", dry_run=True).text
+    assert SHORTENED_FOOTER in text
+
+
 def test_session_housekeeping_is_short(tmp_path):
     palace = MemoryPalace(tmp_path)
     for i in range(10):

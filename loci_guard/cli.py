@@ -382,11 +382,19 @@ def history(ctx, ref):
 @click.option("--list", "list_sessions", is_flag=True, help="List archived chats")
 @click.option("--candidates", is_flag=True, help="Rules stated in past chats, awaiting confirmation")
 @click.option("--all", "show_all", is_flag=True, help="Include dormant (faded) memories")
+@click.option("--id", "ids", multiple=True, help="Full text of a memory shown shortened (repeatable)")
 @click.pass_context
-def recall(ctx, place, query, session, list_sessions, candidates, show_all):
+def recall(ctx, place, query, session, list_sessions, candidates, show_all, ids):
     """Walk the palace: a room's memories, a search, or past chats."""
     palace = MemoryPalace(ctx.obj["root"])
-    if session:
+    if ids:
+        for memory_id in ids:
+            m = palace.memories.get(memory_id.lstrip("#"))
+            if m is None:
+                raise click.ClickException(f"No memory #{memory_id}")
+            where = ", ".join(a or "(atrium)" for a in m["anchors"])
+            click.echo(f"[{m['kind'].upper()}] {m['text']}  @{where} #{m['id']}")
+    elif session:
         text = archive.read_session(palace, session)
         if text is None:
             raise click.ClickException(f"No single archived chat matches '{session}'. Try `recall --list`.")

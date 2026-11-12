@@ -215,7 +215,9 @@ In Global Workspace Theory, specialised modules compete to put content on a smal
 - **Mandatory first.** Constraints always get through, even past capacity (up to a floor).
 - **Then by salience**, within the capacity the astrocyte sets for this moment. Salience combines kind (rule > pitfall > decision > note), memory strength, room heat, distance from the file, and surprise (memories newer than the wiki page get a boost).
 - **Ignition threshold.** Items too weak to matter never reach the stage.
-- **Deduplication by provenance.** A wiki bullet whose cited sources the agent has already received, in this broadcast or earlier in the session, is dropped. Identical text from two modules is broadcast once.
+- **Deduplication by provenance.** A wiki bullet whose cited sources the agent has already received, in this broadcast or earlier in the session, is dropped. Identical text from two modules is broadcast once, and so is a restatement: most of the same words in the same group, with no number, path or identifier the first one lacks.
+- **Gist first, verbatim on demand** (fuzzy-trace theory). A long memory arrives as its opening clause plus, in brackets, every precise detail of the part cut away; `loci-guard recall --id ID` gives the full text. Rules, intentions and curated wiki bullets are never cut.
+- **Chunking.** Three or more memories of one kind saved in the same place within minutes (one episode) arrive as one item: the strongest in full, the others by id.
 - **Feedback.** What wins is reinforced and co-activated, marked as seen, and charged to the session budget.
 
 ```bash
@@ -225,6 +227,8 @@ loci-guard context                        # just the session-start broadcast
 ```
 
 The workspace command changes nothing, so you can use it to debug what the agent sees.
+
+Measured on this repository (one simulated session opening all 49 source files, same memories): the version before these changes injected about 964 tokens and had to cut the `shield/` room's rules for lack of budget; the current one injects about 968 tokens and delivers twice as many items (16 vs 8), including all of those rules.
 
 ### Shield: Protects Your Code
 
@@ -315,6 +319,7 @@ ignore_paths:               # extra paths scans skip, on top of .gitignore
 | `loci-guard remember "text" --at PATH [--kind] [--link ID]` | Hang a memory in a room |
 | `loci-guard recall [PATH]` | Memories visible from a room |
 | `loci-guard recall --search "words"` | Search memories and past chats |
+| `loci-guard recall --id ID` | Full text of a memory that arrived shortened |
 | `loci-guard recall --list \| --session ID \| --candidates` | Archived chats, one chat, candidate rules |
 | `loci-guard map` | Rooms and how many memories of each kind they hold |
 | `loci-guard astro [--dormant \| --stale \| --wake ID]` | Activity heat map and memory strength |

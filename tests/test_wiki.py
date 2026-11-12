@@ -143,7 +143,7 @@ def test_room_entry_uses_page_instead_of_covered_memories(tmp_path):
     fresh["updated_at"] = clock.t + 1  # and this one arrived after the compilation
 
     text = Astrocyte(palace).select("s1", "billing/invoice.py")
-    assert "wiki page: .loci/wiki/billing.md" in text and "Webhooks retry three times" in text
+    assert "(wiki: .loci/wiki/billing.md)" in text and "Webhooks retry three times" in text
     assert "webhooks retry 3 times" not in text
     assert "money is Decimal" in text
     assert "Decimal only" not in text  # its only source, the constraint, was already broadcast

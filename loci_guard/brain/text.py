@@ -35,6 +35,7 @@ _FACT_PATTERNS = (
     re.compile(r"\b[A-Za-z_][\w-]*(?:[./][\w-]+)+/?"),                     # paths, dotted names, files
     re.compile(r"\b[a-z0-9]+(?:_[a-z0-9]+)+\b"),                           # snake_case
     re.compile(r"\b[a-z]+(?:[A-Z][a-z0-9]+)+\b|\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b"),  # camelCase, PascalCase
+    re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"),                      # MAX_RETRIES, API_KEY
     re.compile(r"\b[A-Z][A-Z0-9]{2,}\b"),                                  # SEC003, AWS, HTTP
 )
 

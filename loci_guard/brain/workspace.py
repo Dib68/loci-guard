@@ -26,7 +26,7 @@ GROUPS = ("About", "Intentions", "Rules", "Pitfalls", "Forecasts", "Decisions", 
 GROUP_TITLES = {
     "Intentions": "Intentions (do these now; then `loci-guard intend --done ID`)",
     "Rules": "Rules (must hold)",
-    "Forecasts": "Forecasts (open predictions about this area, weighted by each persona's track record)",
+    "Forecasts": "Forecasts (calibrated; once known: `loci-guard foresee resolve ID yes|no`)",
     "Nearby": "Nearby (areas you've been working in)",
 }
 FORECAST_SALIENCE = 8.0
@@ -53,6 +53,40 @@ MIN_RESTATE_TOKENS = 4
 ROOM_SKIP_KINDS = ("chat", "candidate")
 ROOMS_LISTED = 6
 _CHECKED_BY = re.compile(r"\s*\(checked by: [^)]*\)$")
+# Fuzzy-trace theory: people keep a gist and a verbatim trace side by side and reason on the gist.
+# Long items reach the agent as their gist plus every precise detail of the part cut away;
+# the verbatim text stays one command away. Rules and intentions are always sent whole.
+GIST_CHARS = 170
+GIST_DETAILS = 4
+SHORTENED = "..."  # ASCII: hook output goes through consoles that may not be UTF-8
+SHORTENED_FOOTER = f"({SHORTENED} = shortened; full text: `loci-guard recall --id ID`)"
+# Chunking: memories of one kind and source, hung in the same places within minutes of each other,
+# came from one episode. Three or more travel as one item: the strongest leads, the rest by id.
+EPISODE_GAP = 15 * 60
+CHUNK_MIN = 3
+CHUNK_KINDS = ("lesson", "note", "decision")
+_CLAUSE_END = re.compile(r"[.;:,)](?=\s)|\s(?:because|so|while|which|where|when|but|and)\s")
+
+
+def gist(text: str, limit: int = GIST_CHARS) -> str:
+    """The text's opening up to a clause boundary, then the facts the cut part held."""
+    if len(text) <= limit:
+        return text
+    window = text[:limit]
+    ends = [m.start() for m in _CLAUSE_END.finditer(window) if m.start() >= limit * 0.5]
+    cut = window[:ends[-1]] if ends else window.rsplit(" ", 1)[0]
+    cut = cut.rstrip(" ,;:")
+    kept, lowered = cut.lower(), text.lower()
+    dropped = [f for f in facts(text) if f not in kept]
+    # Most specific first, a detail inside a longer one adds nothing, and the original spelling is shown.
+    dropped.sort(key=lambda f: (-len(f), f))
+    chosen: list[str] = []
+    for f in dropped:
+        if not any(f in c.lower() for c in chosen):
+            at = lowered.find(f)
+            chosen.append(text[at:at + len(f)] if at >= 0 else f)
+    details = f" [{', '.join(chosen[:GIST_DETAILS])}]" if chosen else ""
+    return f"{cut}{SHORTENED}{details}"
 
 BROADCAST = "broadcast"
 
@@ -68,6 +102,8 @@ class Proposal(NamedTuple):
     mandatory: bool = False
     memory_id: str | None = None
     cites: frozenset[str] = frozenset()
+    members: tuple[str, ...] = ()  # other memories this item stands for (an episode chunk)
+    shortened: bool = False  # the text is a gist; the full one is `recall --id`
 
     @property
     def cost(self) -> int:
@@ -145,6 +181,8 @@ def render(title: str, chosen: list[Proposal], footer: str = "") -> str:
         for p in items:
             suffix = f" #{p.memory_id}" if p.memory_id else ""
             lines.append(f"- {p.text}{suffix}")
+    if any(p.shortened for p in chosen):
+        lines.append(SHORTENED_FOOTER)
     if footer:
         lines.append(footer)
     return "\n".join(lines)
@@ -190,6 +228,7 @@ def wiki_proposals(page: dict[str, Any], room: str) -> list[Proposal]:
                 key=f"wiki:{room}:{name}:{i}",
                 source="wiki",
                 group=SECTION_GROUP.get(name, "Notes"),
+                # Wiki bullets are already a curated summary; cutting them again loses consequences.
                 text=_strip_citations(item),
                 salience=SECTION_SALIENCE.get(name, 2.0),
                 cites=frozenset(CITATION.findall(item)),
@@ -197,17 +236,57 @@ def wiki_proposals(page: dict[str, Any], room: str) -> list[Proposal]:
     return proposals
 
 
-def memory_proposal(m: dict[str, Any], salience: float, source: str, group: str | None = None, suffix: str = "") -> Proposal:
+def memory_proposal(m: dict[str, Any], salience: float, source: str, group: str | None = None, suffix: str = "",
+                    members: tuple[str, ...] = ()) -> Proposal:
+    mandatory = m["kind"] in MANDATORY_KINDS
+    # Lessons from older foresight runs carry how they were checked; that lives in foresight.json.
+    text = _CHECKED_BY.sub("", m["text"])
+    short = text if mandatory else gist(text)
     return Proposal(
         key=m["id"],
         source=source,
         group=group or KIND_GROUP.get(m["kind"], "Notes"),
-        # Lessons from older foresight runs carry how they were checked; that lives in foresight.json.
-        text=_CHECKED_BY.sub("", m["text"]) + suffix,
+        text=short + suffix,
         salience=salience,
-        mandatory=m["kind"] in MANDATORY_KINDS,
+        mandatory=mandatory,
         memory_id=m["id"],
+        members=members,
+        shortened=short != text,
     )
+
+
+def episodes(scored: list[tuple[dict[str, Any], float]]) -> list[list[tuple[dict[str, Any], float]]]:
+    """Split memories into episodes: same kind, source and places, each within EPISODE_GAP of the last."""
+    groups: dict[tuple, list[tuple[dict[str, Any], float]]] = {}
+    for pair in sorted(scored, key=lambda pair: pair[0]["created_at"]):
+        m = pair[0]
+        groups.setdefault((m["kind"], m.get("source"), tuple(sorted(m["anchors"]))), []).append(pair)
+    out = []
+    for run in groups.values():
+        current = [run[0]]
+        for pair in run[1:]:
+            if pair[0]["created_at"] - current[-1][0]["created_at"] <= EPISODE_GAP:
+                current.append(pair)
+            else:
+                out.append(current)
+                current = [pair]
+        out.append(current)
+    return out
+
+
+def chunk_proposals(scored: list[tuple[dict[str, Any], float]], source: str) -> list[Proposal]:
+    """One proposal per memory, except episodes of CHUNK_MIN or more, which become one item."""
+    proposals = []
+    for episode in episodes(scored):
+        if len(episode) < CHUNK_MIN or episode[0][0]["kind"] not in CHUNK_KINDS:
+            proposals += [memory_proposal(m, s, source) for m, s in episode]
+            continue
+        episode.sort(key=lambda pair: -pair[1])
+        (lead, salience), rest = episode[0], [m["id"] for m, _ in episode[1:]]
+        refs = " ".join(f"#{i}" for i in rest)
+        proposals.append(memory_proposal(lead, salience, source, suffix=f" (+{len(rest)} from the same episode: {refs})",
+                                         members=tuple(rest)))
+    return proposals
 
 
 # ---------- broadcasts ----------
@@ -241,6 +320,7 @@ def room_broadcast(
 
     proposals: list[Proposal] = []
     skipped: list[Outcome] = []
+    plain: list[tuple[dict[str, Any], float]] = []
     for m in palace.recall(file_path, include_atrium=False):
         if m["kind"] in ROOM_SKIP_KINDS:
             continue
@@ -260,7 +340,8 @@ def room_broadcast(
         elif newer:
             proposals.append(memory_proposal(m, salience * SURPRISE_GAIN, "palace", suffix=" (new since the wiki page)"))
         else:
-            proposals.append(memory_proposal(m, salience, "palace"))
+            plain.append((m, salience))
+    proposals += chunk_proposals(plain, "palace")
 
     for m in astro._nearby(set(chain)):
         if m["kind"] in ROOM_SKIP_KINDS:
@@ -273,8 +354,8 @@ def room_broadcast(
         likely = foresight.weighted(p)
         proposals.append(Proposal(
             f"forecast:{p['id']}", "foresight", "Forecasts",
-            f"{likely:.0%} likely ({p['persona']}): {p['claim']}. Check: {p['check']}. "
-            f"Once known: `loci-guard foresee resolve {p['id']} yes|no`",
+            f"{p['id']}: {likely:.0%} ({p['persona']}) {gist(p['claim']).rstrip('.')}. "
+            f"Check: {gist(p['check'], GIST_CHARS // 2)}",
             FORECAST_SALIENCE * likely,
         ))
     if page:
@@ -290,14 +371,15 @@ def room_broadcast(
 
     held = sum(1 for o in outcomes if o.status == "over capacity")
     footer = f"[{held} more held back to keep context small: loci-guard recall {room}]" if held else ""
-    title = f"Loci Guard workspace for {room or '(atrium)'}"
+    title = f"Loci Guard, {room or '(atrium)'}"
     if page:
-        title += f" (wiki page: {Wiki(palace).page_path(room).relative_to(palace.root).as_posix()})"
+        title += f" (wiki: {Wiki(palace).page_path(room).relative_to(palace.root).as_posix()})"
     text = render(title + ":", chosen, footer)
 
     if not dry_run:
-        memory_ids = [p.memory_id for p in chosen if p.memory_id]
-        palace.mark_seen(session_id, [p.key for p in chosen])
+        # A chunk's members count as delivered: the agent holds their ids and the episode's gist.
+        memory_ids = [i for p in chosen for i in ((p.memory_id,) if p.memory_id else ()) + p.members]
+        palace.mark_seen(session_id, [k for p in chosen for k in (p.key, *p.members)])
         astro.reinforce(memory_ids)
         astro.co_activate(memory_ids)
         astro.spend(session_id, len(text))
