@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loci-guard"
+version = "0.1.0"
+description = "AI-powered project brain + security shield. Learns your codebase, enforces your rules, catches AI-generated vulnerabilities."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Loci Guard Contributors" }]
+keywords = ["ai", "security", "code-analysis", "agent-skill", "project-memory"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Security",
+]
+dependencies = [
+    "click>=8.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "pathspec>=0.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-cov", "ruff"]
+
+[project.scripts]
+loci-guard = "loci_guard.entry:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["loci_guard"]
+
+# The skill lives at skills/ (where skill collections expect it) and ships inside the package.
+[tool.hatch.build.targets.wheel.force-include]
+"skills/loci-guard" = "loci_guard/skill"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

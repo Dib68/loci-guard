@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+*.log
+
+# Personal Claude Code settings (hooks installed with a machine-specific executable path)
+.claude/settings.local.json
+
+# Loci Guard data of this checkout (memories, chat archive, wiki). A team that wants to
+# share rules and decisions can commit .loci/memory.json and .loci/palace.json instead.
+.loci/
+*.lock
