@@ -3,6 +3,7 @@
 
 import io
 import json
+import os
 import subprocess
 import sys
 
@@ -101,6 +102,26 @@ def test_real_stdio_round_trip(tmp_path):
     replies = [json.loads(line) for line in proc.stdout.splitlines()]
     assert [r["id"] for r in replies] == [1, 2], proc.stderr
     assert any(m["text"] == "Invoices are immutable after issue" for m in MemoryPalace(tmp_path).memories.values())
+
+
+def test_stdio_is_utf8_whatever_the_platform_default(tmp_path):
+    """MCP is UTF-8 by spec; a BOM from a Windows shell must not break the first message."""
+    launcher = "import sys; from loci_guard.entry import main; sys.argv = ['loci-guard', '--root', sys.argv[1], 'mcp']; main()"
+    text = "Le fatture sono immutabili perché la città lo esige €"
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "remember", "arguments": {"text": text, "at": ["billing/"]}}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "recall", "arguments": {"path": "billing/x.py"}}},
+    ]
+    raw = b"\xef\xbb\xbf" + "".join(json.dumps(m, ensure_ascii=False) + "\n" for m in messages).encode("utf-8")
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
+    proc = subprocess.run([sys.executable, "-c", launcher, str(tmp_path)], input=raw, capture_output=True,
+                          timeout=60, check=False, env=env)
+    replies = [json.loads(line) for line in proc.stdout.decode("utf-8").splitlines()]
+    assert [r["id"] for r in replies] == [1, 2, 3], proc.stderr.decode("utf-8", "replace")
+    assert any(m["text"] == text for m in MemoryPalace(tmp_path).memories.values())
+    assert text in replies[2]["result"]["content"][0]["text"]
 
 
 def test_print_config(tmp_path):

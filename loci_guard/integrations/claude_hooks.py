@@ -42,6 +42,21 @@ def format_block_message(file_path: str, blocking: list[dict]) -> str:
     return "\n".join(lines)
 
 
+WARN_SEVERITIES = ("critical", "high", "medium")
+
+
+def format_warnings(file_path: str, warnings: list[dict]) -> str | None:
+    """Findings under the block threshold, said once after the write instead of disappearing."""
+    shown = [f for f in warnings if f["severity"] in WARN_SEVERITIES]
+    if not shown:
+        return None
+    lines = [f"Loci Guard warnings for what was just written to {file_path} (not blocked; fix them if they apply):"]
+    for f in shown:
+        lines.append(f"- [{f['severity'].upper()} {f['rule_id']}] line {f['line']}: {f['message']}"
+                     + (f" Fix: {f['fix_suggestion']}" if f.get("fix_suggestion") else ""))
+    return "\n".join(lines)
+
+
 def is_initialized(root: Path) -> bool:
     return (root / ".loci").is_dir()
 

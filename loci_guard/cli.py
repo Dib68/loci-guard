@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 import time
@@ -191,8 +192,11 @@ def check(ctx, source, filename, json_output):
 
 
 @main.group()
-def hook():
+@click.pass_context
+def hook(ctx):
     """Entry points called by AI tool hooks (reads hook JSON from stdin)."""
+    # The payload's `cwd` wins; `--root` is the fallback for payloads without one.
+    hooks.DEFAULT_ROOT = Path(ctx.obj["root"])
 
 
 @hook.command("pretool")
@@ -875,7 +879,11 @@ def mcp(ctx, print_config):
     if print_config:
         click.echo(json.dumps(client_config(_self_executable(), root), indent=2))
         return
-    Server(root).serve()
+    # MCP stdio is UTF-8 by spec; the platform default (cp1252 on Windows) would garble accents.
+    # utf-8-sig also drops a BOM a Windows shell may put in front of the first message.
+    stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig", errors="replace")
+    stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", newline="\n", write_through=True)
+    Server(root).serve(stdin, stdout)
 
 
 @main.command()

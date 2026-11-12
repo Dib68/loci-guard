@@ -22,7 +22,7 @@ class GateValidator:
         self.config = Config(self.root)
         self.memory = ProjectMemory(self.root)
         self.shield = ShieldAnalyzer(self.root, extra_ignore=self.config.get("ignore_paths", []))
-        self.block_level = SEVERITY_ORDER.get(self.config.get("gate.block_severity", "critical"), 0)
+        self.block_level = SEVERITY_ORDER.get(self.config.get("gate.block_severity", "high"), 1)
 
     def validate_staged(self) -> dict[str, Any]:
         return self._validate_paths(self._git_files(["diff", "--cached", "--name-only", "--diff-filter=ACMR"]))

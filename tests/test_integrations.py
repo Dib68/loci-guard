@@ -102,6 +102,26 @@ def test_pretool_hook_blocks_insecure_write(tmp_path):
     assert "SEC003" in result.output
 
 
+SHELL_CODE = "import subprocess\n\ndef run(cmd):\n    return subprocess.run(cmd, shell=True)\n"
+
+
+def test_pretool_hook_blocks_high_severity_injection_by_default(tmp_path):
+    # A fresh project once let shell=True, eval and SQL f-strings through silently: only critical blocked.
+    result = _pretool(tmp_path, "Write", {"file_path": str(tmp_path / "run.py"), "content": SHELL_CODE})
+    assert result.exit_code == 2 and "SEC014" in result.output
+
+
+def test_findings_under_the_threshold_reach_the_agent_after_the_write(tmp_path):
+    (tmp_path / ".loci").mkdir()
+    (tmp_path / ".loci" / "config.yaml").write_text("gate:\n  block_severity: critical\n", encoding="utf-8")
+    write = {"file_path": str(tmp_path / "run.py"), "content": SHELL_CODE}
+    assert _pretool(tmp_path, "Write", write).exit_code == 0
+    payload = {"tool_name": "Write", "tool_input": write, "cwd": str(tmp_path), "session_id": "s"}
+    out = CliRunner().invoke(main, ["hook", "enter-room"], input=json.dumps(payload)).output
+    context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert "Loci Guard warnings" in context and "SEC014" in context
+
+
 def test_pretool_hook_allows_clean_edit(tmp_path):
     edit = {"file_path": str(tmp_path / "s.py"), "old_string": "a", "new_string": "key = os.environ['KEY']"}
     assert _pretool(tmp_path, "Edit", edit).exit_code == 0
@@ -122,6 +142,12 @@ def test_session_start_hook_prints_constraints(tmp_path):
     ProjectMemory(tmp_path).add_constraint("no_eval", "Never use eval()", "critical")
     result = CliRunner().invoke(main, ["hook", "session-start"], input=json.dumps({"cwd": str(tmp_path)}))
     assert result.exit_code == 0
+    assert "Never use eval()" in result.output
+
+
+def test_hooks_fall_back_to_root_when_the_payload_has_no_cwd(tmp_path):
+    ProjectMemory(tmp_path).add_constraint("no_eval", "Never use eval()", "critical")
+    result = CliRunner().invoke(main, ["--root", str(tmp_path), "hook", "session-start"], input="{}")
     assert "Never use eval()" in result.output
 
 

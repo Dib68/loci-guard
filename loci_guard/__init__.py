@@ -1,3 +1,3 @@
-"""Loci Guard: AI-powered project brain + security shield."""
+"""Loci Guard: project memory, security shield and foresight for AI coding agents."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

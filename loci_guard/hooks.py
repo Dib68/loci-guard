@@ -24,8 +24,11 @@ def _payload() -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+DEFAULT_ROOT = Path(".")  # `loci-guard --root X hook ...` sets it
+
+
 def _root(payload: dict) -> Path:
-    return Path(payload.get("cwd") or ".").resolve()
+    return Path(payload.get("cwd") or DEFAULT_ROOT).resolve()
 
 
 def pretool(payload: dict) -> int:
@@ -63,12 +66,20 @@ def session_start(payload: dict) -> int:
 def enter_room(payload: dict) -> int:
     """PostToolUse on file tools: tell Claude what the workspace broadcasts for the room it entered."""
     root = _root(payload)
-    file_path = (payload.get("tool_input") or {}).get("file_path")
+    tool_input = payload.get("tool_input") or {}
+    file_path = tool_input.get("file_path")
     if not file_path or not claude_hooks.is_initialized(root):
         return 0
-    text = claude_hooks.room_context(
-        root, file_path, payload.get("session_id") or "default", payload.get("tool_name") or "Read"
-    )
+    tool_name = payload.get("tool_name") or "Read"
+    parts = [claude_hooks.room_context(root, file_path, payload.get("session_id") or "default", tool_name)]
+    content = claude_hooks.proposed_content(tool_name, tool_input)
+    if content.strip():
+        # PreToolUse only blocks; findings under the threshold are told to the agent here.
+        from loci_guard.gate.validator import GateValidator
+
+        warnings = GateValidator(root).validate_content(content, file_path)["warnings"]
+        parts.append(claude_hooks.format_warnings(file_path, warnings))
+    text = "\n\n".join(p for p in parts if p)
     if text:
         sys.stdout.write(claude_hooks.additional_context("PostToolUse", text) + "\n")
     return 0

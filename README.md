@@ -33,8 +33,8 @@ Loci Guard solves all three.
 ## Quick Start
 
 ```bash
-# Not on PyPI yet: install from a clone of this repo
-pip install -e .
+# Not on PyPI yet: install straight from GitHub (Python 3.10+)
+pip install "git+https://github.com/Dib68/loci-guard.git"
 
 # One step: config, scan, archive past chats, Claude Code hooks, skill
 cd your-project
@@ -243,10 +243,10 @@ Detects 20+ vulnerability patterns out of the box:
 
 ### Gate: Blocks Before It Ships
 
-- **Pre-commit hook** — blocks commits with critical security issues
+- **Pre-commit hook** — blocks commits with critical or high security issues
 - **AI output scanner** — `loci-guard check` validates code from stdin before it touches your filesystem
 - **PR gate** — `loci-guard gate --changed-since origin/main` checks only what the PR changed
-- **Configurable severity** — `gate.block_severity` in the config: block on critical only, or be strict and block on medium+
+- **Configurable severity** — `gate.block_severity` in the config. The default, `high`, blocks injection (SQL f-strings, `shell=True`, `eval`, `innerHTML`), JWTs, database URLs with passwords and PII in logs, as well as hardcoded keys. Set `critical` to block keys only, or `medium` to be stricter. Findings under the threshold are not lost: the agent is told about them right after the write.
 
 ### Claude Code Hooks: Enforcement, Not Suggestions
 
@@ -255,7 +255,7 @@ Context files are suggestions an agent can forget. Hooks run every time:
 | Hook | When it fires | What it does |
 |---|---|---|
 | `PreToolUse` on `Write\|Edit\|MultiEdit` | Before Claude writes a file | Scans only the text being added. On a blocking finding it cancels the write, tells Claude which line to fix and how, and hangs a lesson in that room. |
-| `PostToolUse` on `Read\|Write\|Edit\|MultiEdit` | After Claude enters a file | Shows the memories of that room that this session hasn't seen yet. |
+| `PostToolUse` on `Read\|Write\|Edit\|MultiEdit` | After Claude enters a file | Shows the memories of that room that this session hasn't seen yet and, after a write, any finding under the block threshold. |
 | `SessionStart` | Startup, resume, `/clear`, **and after compaction** | Re-injects the atrium and the palace map, and re-opens the rooms so they are recalled again. |
 | `PreCompact`, `SessionEnd` | Before compaction, at exit | Archives the transcript into the palace; before compaction it also tells the summarizer what to keep. |
 
@@ -263,7 +263,7 @@ Context files are suggestions an agent can forget. Hooks run every time:
 
 ### Agent Skill
 
-[`skills/loci-guard/`](skills/loci-guard/SKILL.md) follows the [agentskills.io](https://agentskills.io/specification) format, read by Claude Code, Hermes Agent and others. `SKILL.md` (about 1,100 tokens, loaded whenever the skill activates) covers what every session needs: load context, check risky code, record rules, decisions and to-dos, verify before saying done. The detail lives in `references/` (memory, wiki, foresight) and is read only when a task needs it. `loci-guard setup` installs the folder into `.claude/skills/`; for a personal install, copy it into `~/.claude/skills/`. A test keeps the skill valid under the spec and fails if it mentions a command the CLI doesn't have, and [`evals/skill/`](evals/skill/README.md) checks how an agent reading it actually behaves in eight scenarios.
+[`skills/loci-guard/`](skills/loci-guard/SKILL.md) follows the [agentskills.io](https://agentskills.io/specification) format, read by Claude Code, Hermes Agent and others. `SKILL.md` (about 1,300 tokens, loaded whenever the skill activates) covers what every session needs: load context, read shortened memories when they matter, check risky code, record rules, corrections, decisions and to-dos (and not noise), verify before saying done. The detail lives in `references/` (memory, wiki, foresight, rule ids) and is read only when a task needs it. `loci-guard setup` installs the folder into `.claude/skills/`; for a personal install, copy it into `~/.claude/skills/`. A test keeps the skill valid under the spec and fails if it mentions a command the CLI doesn't have, and [`evals/skill/`](evals/skill/README.md) checks how an agent reading it actually behaves in twelve scenarios.
 
 ### False Positives
 
@@ -294,7 +294,7 @@ password = "fixture-password-for-tests"
 brain:
   auto_learn: true          # derive rules from the scan
 gate:
-  block_severity: critical  # lowest severity that blocks: critical | high | medium
+  block_severity: high      # lowest severity that blocks: critical | high | medium
 ignore_paths:               # extra paths scans skip, on top of .gitignore
   - node_modules
   - .venv

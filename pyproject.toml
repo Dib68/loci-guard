@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "loci-guard"
-version = "0.1.0"
-description = "AI-powered project brain + security shield. Learns your codebase, enforces your rules, catches AI-generated vulnerabilities."
+version = "0.2.0"
+description = "Project memory, security shield and foresight for AI coding agents: remembers your rules where they apply, blocks insecure AI-written code, shares it all over MCP."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Loci Guard Contributors" }]
-keywords = ["ai", "security", "code-analysis", "agent-skill", "project-memory"]
+keywords = ["ai", "security", "code-analysis", "agent-skill", "project-memory", "claude-code", "mcp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,6 +25,11 @@ dependencies = [
     "rich>=13.0",
     "pathspec>=0.11",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Dib68/loci-guard"
+Issues = "https://github.com/Dib68/loci-guard/issues"
+Changelog = "https://github.com/Dib68/loci-guard/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov", "ruff"]

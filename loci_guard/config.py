@@ -11,7 +11,9 @@ import yaml
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
     "brain": {"auto_learn": True},            # derive rules from the scan
-    "gate": {"block_severity": "critical"},   # critical | high | medium
+    # high blocks injection (SQL, shell, eval, innerHTML), JWTs, DB URLs and PII in logs, not just
+    # hardcoded keys: the mistakes AI-written code makes most. critical | high | medium
+    "gate": {"block_severity": "high"},
     "ignore_paths": ["node_modules", ".venv", "venv", "__pycache__", "dist", "build"],
 }
 

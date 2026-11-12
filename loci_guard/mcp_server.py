@@ -129,7 +129,8 @@ class Server:
             if not line.strip():
                 continue
             try:
-                message = json.loads(line)
+                # A BOM can lead the first line when a Windows shell pipes into the server.
+                message = json.loads(line.lstrip("﻿"))
             except json.JSONDecodeError:
                 response = self._error(None, -32700, "Parse error")
             else:
