@@ -191,8 +191,9 @@ class Foresight:
         self.save()
         if happened:
             # A foreseen outcome is knowledge about the area: keep it where it applies.
+            # How it was checked stays in foresight.json; the lesson is re-read often, so it stays short.
             self.palace.remember(
-                f"Foreseen and it happened: {prediction['claim']} (checked by: {prediction['check']})",
+                f"Foreseen and it happened: {prediction['claim']}",
                 prediction["rooms"] or [ATRIUM], kind="lesson", source="foresight",
             )
         return prediction

@@ -18,6 +18,7 @@ from loci_guard.brain.astrocyte import MAX_HEAT, Astrocyte
 from loci_guard.brain.foresight import Foresight
 from loci_guard.brain.memory import ProjectMemory
 from loci_guard.brain.palace import ATRIUM, MemoryPalace
+from loci_guard.brain.text import facts, tokens
 from loci_guard.brain.wiki import CITATION, Wiki
 
 GROUPS = ("About", "Intentions", "Rules", "Pitfalls", "Forecasts", "Decisions", "Notes", "Linked", "Nearby",
@@ -44,6 +45,14 @@ LINKED_GAIN = 0.6
 NEARBY_GAIN = 0.4
 DEPTH_DECAY = 0.3
 ITEM_OVERHEAD = 3
+# A non-mandatory item is dropped when most of its words are already on stage in the same group
+# and it adds no number, path or identifier the broadcast item lacks.
+RESTATE_OVERLAP = 0.7
+MIN_RESTATE_TOKENS = 4
+# Room broadcasts carry what applies to the code; past chats are found with `recall --search`.
+ROOM_SKIP_KINDS = ("chat", "candidate")
+ROOMS_LISTED = 6
+_CHECKED_BY = re.compile(r"\s*\(checked by: [^)]*\)$")
 
 BROADCAST = "broadcast"
 
@@ -74,17 +83,34 @@ def _normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
+def _restates(p: Proposal, shown: list[tuple[Proposal, set[str], set[str]]]) -> bool:
+    """True when an already broadcast item in the same group says the same, with every precise detail."""
+    if p.mandatory:
+        return False
+    words, details = tokens(p.text), facts(p.text)
+    if len(words) < MIN_RESTATE_TOKENS:
+        return False
+    return any(
+        q.group == p.group and details <= q_details
+        and len(words & q_words) >= RESTATE_OVERLAP * min(len(words), len(q_words))
+        for q, q_words, q_details in shown
+    )
+
+
 def compete(proposals: list[Proposal], capacity: int, seen: set[str] | frozenset[str] = frozenset()) -> list[Outcome]:
     """Decide every proposal's fate. Mandatory items first, then by salience, within capacity."""
     ordered = sorted(proposals, key=lambda p: (not p.mandatory, -p.salience))
     # Memory proposals use the memory id as key, so `seen` also says what the agent already holds.
     outcomes, texts, broadcast_ids, used = [], set(), set(seen), 0
+    shown: list[tuple[Proposal, set[str], set[str]]] = []
     for p in ordered:
         norm = _normalize(p.text)
         if p.key in seen:
             status = "already seen this session"
         elif norm in texts:
             status = "duplicate"
+        elif _restates(p, shown):
+            status = "restates a broadcast item"
         elif p.cites and p.cites <= broadcast_ids:
             status = "covered by a broadcast memory"
         elif not p.mandatory and p.salience < IGNITION:
@@ -95,6 +121,7 @@ def compete(proposals: list[Proposal], capacity: int, seen: set[str] | frozenset
             status = BROADCAST
             used += p.cost
             texts.add(norm)
+            shown.append((p, tokens(p.text), facts(p.text)))
             if p.memory_id:
                 broadcast_ids.add(p.memory_id)
         outcomes.append(Outcome(p, status))
@@ -175,7 +202,8 @@ def memory_proposal(m: dict[str, Any], salience: float, source: str, group: str 
         key=m["id"],
         source=source,
         group=group or KIND_GROUP.get(m["kind"], "Notes"),
-        text=m["text"] + suffix,
+        # Lessons from older foresight runs carry how they were checked; that lives in foresight.json.
+        text=_CHECKED_BY.sub("", m["text"]) + suffix,
         salience=salience,
         mandatory=m["kind"] in MANDATORY_KINDS,
         memory_id=m["id"],
@@ -214,6 +242,8 @@ def room_broadcast(
     proposals: list[Proposal] = []
     skipped: list[Outcome] = []
     for m in palace.recall(file_path, include_atrium=False):
+        if m["kind"] in ROOM_SKIP_KINDS:
+            continue
         if astro.is_dormant(m):
             skipped.append(Outcome(memory_proposal(m, 0, "palace"), "dormant"))
             continue
@@ -233,6 +263,8 @@ def room_broadcast(
             proposals.append(memory_proposal(m, salience, "palace"))
 
     for m in astro._nearby(set(chain)):
+        if m["kind"] in ROOM_SKIP_KINDS:
+            continue
         proposals.append(memory_proposal(
             m, KIND_SALIENCE.get(m["kind"], 2.0) * astro.strength(m) * NEARBY_GAIN, "astrocyte", group="Nearby",
         ))
@@ -273,6 +305,41 @@ def room_broadcast(
     return Broadcast(text, outcomes, capacity)
 
 
+def _housekeeping(palace: MemoryPalace) -> list[Proposal]:
+    """One short line per pending chore. It is re-sent after every compaction, so every word counts."""
+    def item(key: str, text: str, salience: float) -> Proposal:
+        return Proposal(f"house:{key}", "palace", "Housekeeping", text, salience)
+
+    out = []
+    rooms = sorted(((a, sum(k.values())) for a, k in palace.map().items() if a.endswith("/")), key=lambda r: -r[1])
+    if rooms:
+        more = f" +{len(rooms) - ROOMS_LISTED} more" if len(rooms) > ROOMS_LISTED else ""
+        listing = ", ".join(f"{a} ({n})" for a, n in rooms[:ROOMS_LISTED])
+        out.append(item("map", f"Rooms: {listing}{more}. They speak when you open their files; "
+                               "past chats: `loci-guard recall --search TEXT`.", 1.5))
+    for orphan in palace.orphans()[:3]:
+        home = palace.suggest_home(orphan)
+        fix = f"`loci-guard relocate {orphan} {home}`" if home else "`loci-guard relocate OLD NEW`"
+        out.append(item(f"orphan:{orphan}", f"{orphan} no longer exists, so its memories are unreachable: "
+                                            f"ask the user, then {fix}.", 1.4))
+    pending = Wiki(palace).pending()
+    if pending:
+        out.append(item("wiki", f"{len(pending)} wiki page(s) to compile; offer `loci-guard wiki compile` "
+                                "once the current task is done.", 1.2))
+    elsewhere = [m for m in palace.intentions() if ATRIUM not in m["anchors"]]
+    if elsewhere:
+        places = ", ".join(sorted({a for m in elsewhere for a in m["anchors"]})[:5])
+        out.append(item("intentions", f"{len(elsewhere)} intention(s) fire in: {places}.", 1.3))
+    unresolved = len(Foresight(palace).open_predictions())
+    if unresolved:
+        out.append(item("foresight", f"{unresolved} open prediction(s); resolve when known: `loci-guard foresee open`.", 1.1))
+    waiting = len(palace.candidates())
+    if waiting:
+        out.append(item("candidates", f"{waiting} rule(s) from past chats to confirm with the user: "
+                                      "`loci-guard recall --candidates`.", 1.0))
+    return out
+
+
 def session_broadcast(root: Path, source: str | None, session_id: str | None, dry_run: bool = False) -> Broadcast:
     """Project-wide context at startup, resume, /clear and after compaction."""
     palace = MemoryPalace(root)
@@ -306,34 +373,7 @@ def session_broadcast(root: Path, source: str | None, session_id: str | None, dr
         if m["kind"] in KIND_GROUP and m["kind"] != "chat" and not astro.is_dormant(m):
             proposals.append(memory_proposal(m, KIND_SALIENCE[m["kind"]] * astro.strength(m), "palace"))
 
-    rooms = {a: k for a, k in palace.map().items() if a != ATRIUM}
-    if rooms:
-        listing = ", ".join(f"{a} ({sum(k.values())})" for a, k in list(rooms.items())[:15])
-        proposals.append(Proposal("house:map", "palace", "Housekeeping",
-                                  f"Memory palace rooms: {listing}. Their memories appear when you read or edit files there; "
-                                  "look ahead with `loci-guard recall <path>`, search past chats with `loci-guard recall --search`.", 1.5))
-    pending = Wiki(palace).pending()
-    if pending:
-        names = ", ".join(d["room"] or "(atrium)" for d in pending[:5])
-        proposals.append(Proposal("house:wiki", "wiki", "Housekeeping",
-                                  f"{len(pending)} wiki page(s) need compiling ({names}). When this session's work is done, "
-                                  "offer to compile them: `loci-guard wiki compile`.", 1.2))
-    elsewhere = [m for m in palace.intentions() if ATRIUM not in m["anchors"]]
-    if elsewhere:
-        places = sorted({a for m in elsewhere for a in m["anchors"]})
-        proposals.append(Proposal("house:intentions", "palace", "Housekeeping",
-                                  f"{len(elsewhere)} open intention(s) will fire when you enter: {', '.join(places[:8])}. "
-                                  "List them with `loci-guard intend --list`.", 1.3))
-    unresolved = Foresight(palace).open_predictions()
-    if unresolved:
-        proposals.append(Proposal("house:foresight", "foresight", "Housekeeping",
-                                  f"{len(unresolved)} prediction(s) await an outcome. When one is known, resolve it so the "
-                                  "personas get calibrated: `loci-guard foresee open`.", 1.1))
-    waiting = len(palace.candidates())
-    if waiting:
-        proposals.append(Proposal("house:candidates", "archive", "Housekeeping",
-                                  f"{waiting} rule(s) stated in past chats await confirmation: `loci-guard recall --candidates`. "
-                                  "Ask the user before promoting any.", 1.0))
+    proposals += _housekeeping(palace)
 
     outcomes = compete(proposals, SESSION_CAPACITY)
     chosen = winners(outcomes)

@@ -320,6 +320,7 @@ ignore_paths:               # extra paths scans skip, on top of .gitignore
 | `loci-guard astro [--dormant \| --stale \| --wake ID]` | Activity heat map and memory strength |
 | `loci-guard wiki status \| compile [ROOM] \| done ROOM \| lint \| show ROOM` | Compiled wiki pages per room |
 | `loci-guard link ID1 ID2` | Connect two memories |
+| `loci-guard relocate [OLD NEW]` | After a rename: list rooms that no longer exist, or move their memories |
 | `loci-guard promote ID` | Confirm a candidate rule |
 | `loci-guard forget-memory ID` | Remove a palace memory |
 | `loci-guard history ID\|NAME` | Every wording of a memory or brain constraint, with what each change dropped |

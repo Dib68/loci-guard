@@ -718,6 +718,33 @@ def link(ctx, first, second):
 
 
 @main.command()
+@click.argument("old", required=False)
+@click.argument("new", required=False)
+@click.pass_context
+def relocate(ctx, old, new):
+    """Move memories after a folder or file was renamed. Without arguments, list rooms that no longer exist."""
+    palace = MemoryPalace(ctx.obj["root"])
+    if old is None:
+        orphans = palace.orphans()
+        if not orphans:
+            console.print("[green]Every room still exists.[/]")
+        for orphan in orphans:
+            home = palace.suggest_home(orphan)
+            hint = f"loci-guard relocate {orphan} {home}" if home else "no likely new place found"
+            console.print(f"{orphan} is gone -> {hint}")
+        return
+    if new is None:
+        raise click.UsageError("Give both the old and the new path.")
+    # A folder moves with everything under it; keep the trailing slash consistent on both sides.
+    if old.endswith(("/", "\\")) != new.endswith(("/", "\\")) and new not in ("", "."):
+        raise click.UsageError("Move a folder to a folder (both ending in /) or a file to a file.")
+    old, new = old.replace("\\", "/"), "" if new in ("", ".", "./") else new.replace("\\", "/")
+    moved = palace.relocate(old, new)
+    console.print(f"[green]Moved {moved} memories[/] from {old} to {new or '(atrium)'}." if moved
+                  else f"No memory is anchored at {old}.")
+
+
+@main.command()
 @click.argument("memory_id")
 @click.option("--kind", default="constraint", type=click.Choice(["constraint", "decision", "note"]))
 @click.pass_context

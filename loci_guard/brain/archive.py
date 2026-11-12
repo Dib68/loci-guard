@@ -81,6 +81,9 @@ def parse_transcript(path: Path) -> dict[str, Any]:
                 continue
             if kind not in ("user", "assistant") or record.get("isSidechain"):
                 continue
+            # Text the harness injects (usage notes, compaction summaries, skill bodies) is not the user's.
+            if record.get("isMeta") or record.get("isCompactSummary"):
+                continue
             session_id = record.get("sessionId", session_id)
             ts = record.get("timestamp")
             first_ts = first_ts or ts

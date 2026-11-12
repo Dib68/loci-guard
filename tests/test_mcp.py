@@ -64,7 +64,7 @@ def test_constrain_intend_history_and_context(tmp_path):
     out, _ = _call(server, "intend", text="Update CHANGELOG.md", when=["billing/"])
     intent_id = out.split("#")[1].split()[0]
     context, _ = _call(server, "project_context")
-    assert "Never use eval()" in context and "will fire when you enter: billing/" in context
+    assert "Never use eval()" in context and "intention(s) fire in: billing/" in context
     assert "Update CHANGELOG.md" in _call(server, "recall", path="billing/x.py")[0]
     assert not _call(server, "intend_done", id=intent_id)[1]
     assert _call(server, "intend_done", id="nope")[1]

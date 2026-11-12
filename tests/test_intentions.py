@@ -47,7 +47,7 @@ def test_session_start_fires_atrium_intentions_and_mentions_room_ones(tmp_path):
     palace.intend("Update CHANGELOG.md", ["billing/"])
     text = session_broadcast(tmp_path, None, None, dry_run=True).text
     assert "Ask the user whether to bump the version" in text
-    assert "1 open intention(s) will fire when you enter: billing/" in text
+    assert "1 intention(s) fire in: billing/" in text
 
 
 def test_intend_command_flow(tmp_path):

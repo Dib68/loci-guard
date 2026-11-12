@@ -29,6 +29,8 @@ RELATE_AT = 0.5
 MIN_TOKENS_TO_COMPARE = 3
 MAX_VERSIONS = 20
 PRIVATE_FILES = ("archive/", "visits.json", "astrocyte.json")
+WALK_DEPTH = 4
+WALK_SKIP = {"node_modules", "venv", "env", "__pycache__", "dist", "build", "target"}
 
 
 def _now() -> float:
@@ -328,6 +330,52 @@ class MemoryPalace:
             (m for m in self.memories.values() if m["kind"] == "candidate"),
             key=lambda m: -m["updated_at"],
         )
+
+    # ---------- rooms whose folder or file is gone (renames, moves) ----------
+
+    def orphans(self) -> list[str]:
+        """Anchors whose path no longer exists: their memories would never surface again."""
+        def missing(anchor: str) -> bool:
+            return not (self.root / anchor.rstrip("/")).exists()
+
+        gone = set()
+        for anchor in {a for m in self.memories.values() for a in m["anchors"] if a != ATRIUM}:
+            if missing(anchor):
+                # Report the outermost missing folder: old/brain/ and old/x.py both mean old/ moved.
+                gone.add([a for a in self.ancestors(anchor) if a != ATRIUM and missing(a)][-1])
+        return sorted(gone)
+
+    def suggest_home(self, orphan: str) -> str | None:
+        """Where a missing room probably went: the folder holding most of the names it held."""
+        prefix = orphan if orphan.endswith("/") else self.room_of(orphan)
+        names = {PurePosixPath(a[len(prefix):].rstrip("/")).parts[0]
+                 for m in self.memories.values() for a in m["anchors"] if a.startswith(prefix) and a != prefix}
+        if not names:
+            return None
+        best, best_hits = None, 0
+        for folder, dirs, files in os.walk(self.root):
+            # Session start runs this, so the walk stays shallow and skips heavy folders.
+            depth = len(Path(folder).relative_to(self.root).parts)
+            dirs[:] = [] if depth >= WALK_DEPTH else [d for d in dirs if not d.startswith(".") and d not in WALK_SKIP]
+            hits = len(names & set(dirs + files))
+            if hits > best_hits:
+                best, best_hits = folder, hits
+        if best is None or best_hits * 2 < len(names):
+            return None
+        rel = Path(best).relative_to(self.root).as_posix()
+        return ATRIUM if rel == "." else rel + "/"
+
+    def relocate(self, old: str, new: str) -> int:
+        """Move every anchor at or under `old` to `new`, keeping the memories as they are."""
+        moved = 0
+        for m in self.memories.values():
+            renamed = [new + a[len(old):] if a.startswith(old) else a for a in m["anchors"]]
+            if renamed != m["anchors"]:
+                m["anchors"] = list(dict.fromkeys(renamed))
+                moved += 1
+        if moved:
+            self.save()
+        return moved
 
     def map(self) -> dict[str, dict[str, int]]:
         """Room -> {kind: count}, for drawing the castle."""
