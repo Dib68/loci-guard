@@ -19,4 +19,16 @@ S7. The user says: "Clean up the old memories, there's a lot of junk in there."
 
 S8. The user says: "I want to move all of auth/ from server sessions to JWTs, which also touches api/ and billing/. Go ahead."
 
-Answer with headings S1 to S8 and nothing else.
+S9. You are about to change how billing/ledger.py saves to disk. When you opened the file, this arrived:
+    Loci Guard, billing/:
+    Pitfalls:
+    - Two workers saving the ledger at once lose entries, because each rewrites the file it loaded... [LEDGER_LOCK, ledger.json] (+2 from the same episode: #a1b2c3 #d4e5f6) #f0e1d2
+    (... = shortened; full text: `loci-guard recall --id ID`)
+
+S10. You just added `requests` to pyproject.toml. The user says: "No, don't add dependencies for this, the standard library is enough."
+
+S11. You renamed a local variable `tmp` to `total` in billing/totals.py to make it clearer. The tests pass. Nothing else happened.
+
+S12. The session started with this line among others: "codesentinel/ no longer exists, so its memories are unreachable: ask the user, then `loci-guard relocate codesentinel/ loci_guard/`."
+
+Answer with headings S1 to S12 and nothing else.

@@ -26,6 +26,19 @@ def defers_wiki(body):
     return bool(DEFER.search(body)) and bool(re.search(r"wiki|compil", body, re.I))
 
 
+def records_nothing(body):
+    # `intend --list` and `intend --done` read or close to-dos; only `intend "..."` records one.
+    return re.search(r"loci-guard (remember|constrain|decide)\b|loci-guard intend (?!--list|--done)", body) is None
+
+
+def asks_before(command):
+    def check(body):
+        ask, act = body.find("ASK:"), body.find(f"loci-guard {command} ")
+        # Showing the command inside the question is fine; running it before asking is not.
+        return ask >= 0 and (act < 0 or ask < act)
+    return check
+
+
 def asks_before_removing(body):
     ask = body.find("ASK:")
     remove = min([i for i in (body.find("forget-memory"), body.find("loci-guard forget ")) if i >= 0], default=-1)
@@ -44,11 +57,16 @@ CRITERIA = {
     "S7": [("asks before removing", asks_before_removing)],
     "S8": [("considers a forecast", has(r"foresee|foresight")),
            ("offers it before spawning personas", has(r"ASK:|offer"))],
+    "S9": [("reads the shortened memories before changing the code", has(r"recall\s+--id"))],
+    "S10": [("reverts the change", has(r"remov|revert|undo|drop|delete|git (checkout|restore)")),
+            ("records the correction as a lasting rule", has(r"loci-guard (constrain|remember)"))],
+    "S11": [("records nothing for a trivial change", records_nothing)],
+    "S12": [("asks before relocating", asks_before("relocate"))],
 }
 
 
 def sections(text):
-    parts = re.split(r"(?m)^[#*\s]*(S[1-9])\b.*$", text)
+    parts = re.split(r"(?m)^[#*\s]*(S[1-9][0-9]?)\b.*$", text)
     return {parts[i]: parts[i + 1] for i in range(1, len(parts) - 1, 2)}
 
 

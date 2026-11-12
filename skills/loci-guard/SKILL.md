@@ -1,6 +1,6 @@
 ---
 name: loci-guard
-description: Project memory, security guard and foresight swarm for coding work. Use at the start of work in a repo that has a .loci/ folder, before working in an area of the code, when the user states a rule, decision or something to do later, when the user refers to past conversations, before a risky or wide change or when asked what could go wrong, before writing code that touches credentials, SQL, shell commands, HTML, logging or CORS, after finding a bug's root cause, and before saying work is done or committing.
+description: Project memory, security guard and foresight swarm for coding work. Use at the start of work in a repo that has a .loci/ folder, before working in an area of the code, when the user states a rule, decision or something to do later or corrects you, when the user refers to past conversations, before a risky or wide change or when asked what could go wrong, before writing code that touches credentials, SQL, shell commands, HTML, logging or CORS, after finding a bug's root cause, and before saying work is done or committing.
 license: MIT
 compatibility: Requires Python 3.10+ with the loci-guard package (CLI or MCP server). Hooks are for Claude Code; other agents use MCP or AGENTS.md.
 ---
@@ -11,7 +11,11 @@ Loci Guard keeps the project's **memory** (rules, decisions, lessons and to-dos 
 
 - If `loci-guard` is blocked by the system, run `python -m loci_guard` with the same arguments.
 - If the `loci-guard` MCP server is connected, its tools (`project_context`, `recall`, `search`, `remember`, `constrain`, `intend`, `check_code`, `foresee`...) do the same as the commands below. Other agents may share this memory, so what you record is what they will read.
-- With the Claude Code hooks installed, insecure writes are blocked and each folder's memories reach you when you open a file there. You don't need to fetch them by hand.
+- With the Claude Code hooks installed, insecure writes are blocked and each folder's memories reach you when you open a file there, in a block titled `Loci Guard, <folder>`. You don't need to fetch them by hand.
+
+## When an item arrives shortened
+
+To save context, long memories arrive as a gist ending in `...` followed by `[details]`, and memories saved together arrive as one item ending in `(+N from the same episode: #id #id)`. Before changing code such an item is about, read it whole: `loci-guard recall --id ID --id ID` (the item's own id is the last `#id`). Otherwise the gist is enough.
 
 ## At the start of a task
 
@@ -31,9 +35,9 @@ EOF
 
 Exit code 1 means a blocking finding. Fix the code rather than suppressing it. Add `# loci-guard: ignore[RULE_ID]` only for a genuine false positive (for example a fake key in a test fixture), and tell the user you did.
 
-## When the user states a rule, a decision or a to-do
+## When the user states a rule, a decision or a to-do, or corrects you
 
-Record it so the next session, and any other agent, knows without being told again. Hang it in the folder it is about; leave it project-wide only when it truly applies everywhere.
+Record it so the next session, and any other agent, knows without being told again. A correction ("no, don't do that") is a rule: first undo what it contradicts, then record it. Hang it in the folder it is about; leave it project-wide only when it truly applies everywhere.
 
 ```bash
 loci-guard constrain payments_via_client "Call the payments API only through billing/client.py" --severity high --at billing/
@@ -43,6 +47,8 @@ loci-guard intend "Update CHANGELOG.md for billing changes" --when billing/   # 
 ```
 
 Constraint names are short snake_case; reusing a name updates the rule. If a command reports `the new wording dropped: ...` and those details still hold, save again with them included.
+
+Record only what a future session would get wrong without being told and can't read from the code or git history. Routine edits, renames, passing tests and your own plans not yet carried out are not memories: every memory is re-read in later sessions, so noise costs context forever. One sentence, with the reason when there is one.
 
 ## After finding a bug's root cause
 
@@ -58,7 +64,7 @@ loci-guard remember "Totals drifted because amounts were floats; use Decimal end
 
 ## Before saying the work is done
 
-Run the tests. Before committing, run `loci-guard gate --staged` and fix anything BLOCKED. Check `loci-guard intend --list` for to-dos on the folders you touched, and resolve any forecast whose outcome you now know (`loci-guard foresee open`).
+Run the tests. Every commit goes through `loci-guard gate --staged` first; fix anything BLOCKED. Don't commit on your own initiative: only when the user asked or the task includes it. Check `loci-guard intend --list` for to-dos on the folders you touched, and resolve any forecast whose outcome you now know (`loci-guard foresee open`).
 
 ## When to do the bigger jobs, and where the how-to is
 
@@ -66,13 +72,6 @@ Run the tests. Before committing, run `loci-guard gate --staged` and fix anythin
 - **A risky or wide change**, or the user asks what could go wrong: offer a foresight forecast before writing the change, since it costs one subagent per persona. If the user agrees, follow [references/foresight.md](references/foresight.md).
 - **Anything else about memory**: looking things up by hand, why something was or wasn't shown, merged or reworded memories, dormant and stale ones, past chats, candidate rules. See [references/memory.md](references/memory.md).
 
-Ask the user before removing any memory, constraint or page: list what you would remove and wait for a yes.
+Ask the user before removing or relocating any memory, constraint or page: list what you would change and wait for a yes.
 
-## Rule ids
-
-| Prefix | Area | Examples |
-|---|---|---|
-| SEC001-007 | Credentials | API keys, passwords, AWS keys, private keys, JWTs, DB URLs with passwords |
-| SEC010-014 | Injection | SQL built with f-strings, shell commands with user input, `innerHTML`, `eval`, `shell=True` |
-| PRV001-004 | Privacy | Hardcoded emails or IPs, PII in logs, `Access-Control-Allow-Origin: *` |
-| QUA001-003 | Quality | TODO/FIXME, leftover debug prints, bare `except:` |
+Rule ids (SEC = credentials and injection, PRV = privacy, QUA = quality) come with their fix in every finding; the full list is in [references/rules.md](references/rules.md).
