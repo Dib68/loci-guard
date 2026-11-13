@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Skill: files written by shell commands or generators are checked with `loci-guard check FILE`, since the write hook never sees them; work handed to a subagent carries the rules of the folders it will touch.
+- Re-archiving an old chat no longer hangs it in folders that were renamed or deleted since, which brought back orphan rooms after every rename.
+- Skill eval: scenarios S13-S17 (rule vs request, memory vs code, shell-written files, pausing, subagents).
+
 ## 0.2.0 (2026-11-12)
 
 ### Shield

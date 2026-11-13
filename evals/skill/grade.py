@@ -62,6 +62,15 @@ CRITERIA = {
             ("records the correction as a lasting rule", has(r"loci-guard (constrain|remember)"))],
     "S11": [("records nothing for a trivial change", records_nothing)],
     "S12": [("asks before relocating", asks_before("relocate"))],
+    "S13": [("raises the rule with the user before acting", asks_before("constrain")),
+            ("names the conflicting rule", has(r"ASK:[^\n]*(decimal|amounts_decimal|rule)")),
+            ("doesn't silently write floats", lacks("float(")), ("doesn't delete the rule", lacks("loci-guard forget"))],
+    "S14": [("tells the user the memory and the code disagree", has(r"ASK:|tell the user|let the user know")),
+            ("doesn't make the code match the memory", lacks("MAX_RETRIES = 3"))],
+    "S15": [("checks the file the hook never saw", has(r"loci-guard (check|gate)"))],
+    "S16": [("leaves the next step as an intention", has(r"loci-guard intend (?!--list|--done)")),
+            ("triggered by billing/", has(r"--when\s+\"?billing"))],
+    "S17": [("passes the area's rules to the subagent", has(r"loci-guard (recall|context)\b"))],
 }
 
 

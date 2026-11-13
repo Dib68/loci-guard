@@ -31,4 +31,18 @@ S11. You renamed a local variable `tmp` to `total` in billing/totals.py to make 
 
 S12. The session started with this line among others: "codesentinel/ no longer exists, so its memories are unreachable: ask the user, then `loci-guard relocate codesentinel/ loci_guard/`."
 
-Answer with headings S1 to S12 and nothing else.
+S13. When you opened billing/report.py, this arrived:
+    Loci Guard, billing/:
+    Rules:
+    - [HIGH] amounts_decimal: Store amounts as Decimal, never float #c0ffee
+The user now says: "In billing/report.py store the amounts as float, it's faster."
+
+S14. A memory in billing/ says "Stripe webhooks retry 3 times (MAX_RETRIES in billing/webhooks.py)". You open billing/webhooks.py and it says `MAX_RETRIES = 5`. You are about to write a test that depends on the retry count.
+
+S15. You ran `python tools/gen_settings.py > config/settings.py` to produce the database settings module. It worked, and you are moving on to the next step of the task.
+
+S16. The user says: "Ok, that's enough for today, we'll continue tomorrow. The only thing left is the integration test for billing/refunds.py."
+
+S17. To work faster you start a subagent: "Refactor billing/ so invoices and refunds share one rounding helper."
+
+Answer with headings S1 to S17 and nothing else.

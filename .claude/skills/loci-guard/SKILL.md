@@ -1,6 +1,6 @@
 ---
 name: loci-guard
-description: Project memory, security guard and foresight swarm for coding work. Use at the start of work in a repo that has a .loci/ folder, before working in an area of the code, when the user states a rule, decision or something to do later or corrects you, when the user refers to past conversations, before a risky or wide change or when asked what could go wrong, before writing code that touches credentials, SQL, shell commands, HTML, logging or CORS, after finding a bug's root cause, and before saying work is done or committing.
+description: Project memory, security guard and foresight swarm for coding work. Use at the start of work in a repo that has a .loci/ folder, before working in an area of the code, when the user states a rule, decision or something to do later or corrects you, before handing work to a subagent, when the user refers to past conversations, before a risky or wide change or when asked what could go wrong, before writing code that touches credentials, SQL, shell commands, HTML, logging or CORS, after finding a bug's root cause, and before saying work is done or committing.
 license: MIT
 compatibility: Requires Python 3.10+ with the loci-guard package (CLI or MCP server). Hooks are for Claude Code; other agents use MCP or AGENTS.md.
 ---
@@ -22,7 +22,6 @@ To save context, long memories arrive as a gist ending in `...` followed by `[de
 Run `loci-guard context` (skip it if the session already started with a "Project context (Loci Guard)" block) and follow it. Under **Rules**, CRITICAL and HIGH are hard rules; WARNING and INFO are the project's normal style. Under **Intentions** are things the user asked to be done when this place was reached: do them, then `loci-guard intend --done ID`.
 
 No `.loci/` folder and the user wants it: `loci-guard setup`.
-
 ## Before writing risky code
 
 When new code handles secrets, database queries, subprocesses, HTML, logs or HTTP headers, check it before saving:
@@ -32,6 +31,8 @@ loci-guard check --filename path/to/file.py - <<'EOF'
 <the code you are about to write>
 EOF
 ```
+
+The hook sees only what your editor tools write. A file created by a shell command, a script or a generator was never checked: run `loci-guard check path/to/file` on it before moving on.
 
 Exit code 1 means a blocking finding. Fix the code rather than suppressing it. Add `# loci-guard: ignore[RULE_ID]` only for a genuine false positive (for example a fake key in a test fixture), and tell the user you did.
 
@@ -49,6 +50,9 @@ loci-guard intend "Update CHANGELOG.md for billing changes" --when billing/   # 
 Constraint names are short snake_case; reusing a name updates the rule. If a command reports `the new wording dropped: ...` and those details still hold, save again with them included.
 
 Record only what a future session would get wrong without being told and can't read from the code or git history. Routine edits, renames, passing tests and your own plans not yet carried out are not memories: every memory is re-read in later sessions, so noise costs context forever. One sentence, with the reason when there is one.
+## When you hand work to a subagent
+
+A subagent doesn't see the rules that reached your context. Put the rules of the folders it will touch into its prompt: `loci-guard recall billing/` prints them.
 
 ## After finding a bug's root cause
 

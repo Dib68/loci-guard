@@ -75,7 +75,10 @@ def test_promote_and_forget(tmp_path):
     assert a["id"] not in palace.memories[b["id"]]["links"]
 
 
-def _write_transcript(tmp_path, file_in_repo):
+def _write_transcript(tmp_path, file_in_repo, create=True):
+    if create:
+        file_in_repo.parent.mkdir(parents=True, exist_ok=True)
+        file_in_repo.touch()
     lines = [
         {"type": "custom-title", "customTitle": "Fix invoice totals", "sessionId": "abc12345-0000"},
         {"type": "user", "sessionId": "abc12345-0000", "timestamp": "2026-11-10T09:00:00Z",
@@ -113,6 +116,18 @@ def test_ingest_hangs_chat_in_touched_room_and_redacts(tmp_path):
 
     archive.ingest(palace, transcript)
     assert len([m for m in palace.memories.values() if m["kind"] == "chat"]) == 1
+
+
+def test_reingesting_an_old_chat_does_not_bring_back_a_renamed_room(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    palace = MemoryPalace(project)
+    transcript = _write_transcript(tmp_path, project / "billing" / "invoice.py")
+    assert archive.ingest(palace, transcript)["rooms"] == ["billing/"]
+
+    (project / "billing").rename(project / "payments")
+    assert archive.ingest(palace, transcript)["rooms"] == [ATRIUM]
+    assert palace.orphans() == []
 
 
 def test_pasted_text_never_becomes_a_candidate_rule():

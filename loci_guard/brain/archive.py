@@ -137,10 +137,12 @@ def ingest(palace: MemoryPalace, transcript_path: str | Path) -> dict[str, Any] 
         return None
 
     sid = parsed["session_id"]
+    # Only files that still exist: re-archiving an old chat must not bring back rooms
+    # that were renamed or deleted since (they would show up as orphans every session).
     rooms = Counter(
         palace.room_of(anchor)
         for anchor in (palace.anchor_for(f) for f in parsed["files"])
-        if anchor is not None
+        if anchor is not None and (palace.root / anchor).exists()
     )
     anchors = [room for room, _ in rooms.most_common(MAX_ROOMS_PER_CHAT)] or [ATRIUM]
 
